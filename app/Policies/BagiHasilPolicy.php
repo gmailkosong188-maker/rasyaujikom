@@ -39,4 +39,13 @@ class BagiHasilPolicy
     {
         return $user->isAdmin();
     }
+
+    /**
+     * Mengonfirmasi pencairan dana ke pemilik — khusus admin dan
+     * hanya untuk catatan yang belum dicairkan.
+     */
+    public function cairkan(User $user, BagiHasil $bagiHasil): bool
+    {
+        return $user->isAdmin() && $bagiHasil->isMenungguPencairan();
+    }
 }

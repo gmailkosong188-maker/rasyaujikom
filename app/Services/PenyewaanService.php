@@ -39,12 +39,20 @@ class PenyewaanService
             throw new InvalidArgumentException('Motor tidak tersedia untuk disewa.');
         }
 
+        if (! $motor->isAktif()) {
+            throw new InvalidArgumentException('Motor sedang tidak aktif dan tidak dapat dibooking.');
+        }
+
         $mulai = Carbon::parse($tanggalMulai)->startOfDay();
         $selesai = Carbon::parse($tanggalSelesai)->startOfDay();
 
         if ($selesai->lt($mulai)) {
             throw new InvalidArgumentException('Tanggal selesai tidak boleh sebelum tanggal mulai.');
         }
+
+        // Tipe durasi dari frontend tidak dipercaya: harus cocok dengan lama sewa.
+        // Dijalankan sebelum harga dihitung agar kombinasi tidak sah tidak pernah dihargai.
+        Penyewaan::validasiDurasi($tipeDurasi, $mulai, $selesai);
 
         $harga = Penyewaan::hitungHarga($tarif, $tipeDurasi, $mulai, $selesai);
 

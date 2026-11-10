@@ -5,7 +5,9 @@
 @section('body')
     <div class="auth-wrap">
         <div class="auth-card">
-            <h1>Daftar Akun</h1>
+            <a href="{{ route('home') }}" class="auth-nav-link">← Kembali ke Beranda</a>
+
+            <h1>Daftar</h1>
             <p class="auth-sub">Sistem Penyewaan Motor</p>
 
             @if ($errors->any())

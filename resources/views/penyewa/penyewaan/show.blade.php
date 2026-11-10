@@ -63,7 +63,7 @@
 
         @if ($penyewaan->transaksis->isEmpty())
             <p class="empty" style="margin:0">
-                Belum ada pembayaran. Pembayaran akan tersedia pada tahap implementasi berikutnya.
+                Belum ada pembayaran.
             </p>
         @else
             <table class="data">
@@ -96,7 +96,7 @@
     @endcan
 
     @if ($penyewaan->transaksis->isEmpty()
-            && ! in_array($penyewaan->status, [\App\Models\Penyewaan::STATUS_DIBATALKAN, \App\Models\Penyewaan::STATUS_SELESAI], true))
+            && $penyewaan->status === \App\Models\Penyewaan::STATUS_DIKONFIRMASI)
         <div class="card">
             <a href="{{ route('penyewa.transaksi.create', ['penyewaan_id' => $penyewaan->id]) }}" class="btn">
                 Lakukan Pembayaran

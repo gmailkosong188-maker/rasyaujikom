@@ -89,9 +89,18 @@ Route::middleware(['auth', 'role:admin'])
         Route::get('/bagi-hasil', [\App\Http\Controllers\Admin\BagiHasilController::class, 'index'])->name('bagi-hasil.index');
         Route::get('/bagi-hasil/{bagiHasil}', [\App\Http\Controllers\Admin\BagiHasilController::class, 'show'])->name('bagi-hasil.show');
         Route::post('/bagi-hasil/penyewaan/{penyewaan}', [\App\Http\Controllers\Admin\BagiHasilController::class, 'catat'])->name('bagi-hasil.catat');
+        Route::patch('/bagi-hasil/{bagiHasil}/cairkan', [\App\Http\Controllers\Admin\BagiHasilController::class, 'cairkan'])->name('bagi-hasil.cairkan');
 
         // Modul laporan (admin): seluruh data sistem.
         Route::get('/laporan', [\App\Http\Controllers\Admin\LaporanController::class, 'index'])->name('laporan.index');
+
+        // Modul user (admin): CRUD user.
+        Route::get('/user', [\App\Http\Controllers\Admin\UserController::class, 'index'])->name('user.index');
+        Route::get('/user/create', [\App\Http\Controllers\Admin\UserController::class, 'create'])->name('user.create');
+        Route::post('/user', [\App\Http\Controllers\Admin\UserController::class, 'store'])->name('user.store');
+        Route::get('/user/{user}/edit', [\App\Http\Controllers\Admin\UserController::class, 'edit'])->name('user.edit');
+        Route::put('/user/{user}', [\App\Http\Controllers\Admin\UserController::class, 'update'])->name('user.update');
+        Route::delete('/user/{user}', [\App\Http\Controllers\Admin\UserController::class, 'destroy'])->name('user.destroy');
     });
 
 /*
@@ -113,6 +122,8 @@ Route::middleware(['auth', 'role:pemilik'])
         Route::get('/motor/{motor}', [\App\Http\Controllers\Pemilik\MotorController::class, 'show'])->name('motor.show');
         Route::get('/motor/{motor}/edit', [\App\Http\Controllers\Pemilik\MotorController::class, 'edit'])->name('motor.edit');
         Route::put('/motor/{motor}', [\App\Http\Controllers\Pemilik\MotorController::class, 'update'])->name('motor.update');
+        Route::post('/motor/{motor}/aktifkan', [\App\Http\Controllers\Pemilik\MotorController::class, 'aktifkan'])->name('motor.aktifkan');
+        Route::post('/motor/{motor}/nonaktifkan', [\App\Http\Controllers\Pemilik\MotorController::class, 'nonaktifkan'])->name('motor.nonaktifkan');
         Route::delete('/motor/{motor}', [\App\Http\Controllers\Pemilik\MotorController::class, 'destroy'])->name('motor.destroy');
 
         // Tarif rental (pemilik): READ-ONLY, hanya motor miliknya.

@@ -21,7 +21,10 @@
             <x-stat label="Jumlah Motor" :value="$jumlahMotor" />
             <x-stat label="Penyewaan" :value="$jumlahPenyewaan" />
             <x-stat label="Total Pendapatan" :value="'Rp '.number_format($totalPendapatan, 0, ',', '.')" />
-            <x-stat label="Total Bagi Hasil" :value="'Rp '.number_format($totalBagiHasil, 0, ',', '.')" />
+            <x-stat label="Total Bagi Hasil" :value="'Rp '.number_format($totalBagiHasil, 0, ',', '.')"
+                hint="Sudah dicairkan" />
+            <x-stat label="Menunggu Pencairan" :value="'Rp '.number_format($totalMenungguPencairan, 0, ',', '.')"
+                hint="Belum diserahkan admin" />
         </div>
     </div>
 
@@ -78,7 +81,7 @@
         @else
             <table class="data">
                 <thead>
-                    <tr><th>#</th><th>Tanggal</th><th>Motor</th><th>Harga Sewa</th><th>Persentase</th><th>Bagian Anda</th></tr>
+                    <tr><th>#</th><th>Tanggal</th><th>Motor</th><th>Harga Sewa</th><th>Persentase</th><th>Bagian Anda</th><th>Status Pencairan</th></tr>
                 </thead>
                 <tbody>
                     @foreach ($bagiHasil as $b)
@@ -89,6 +92,16 @@
                             <td class="money">Rp {{ number_format($b->penyewaan?->harga ?? 0, 0, ',', '.') }}</td>
                             <td>{{ $b->persentase_hasil_pemilik }}%</td>
                             <td class="money">Rp {{ number_format($b->nominal_pemilik, 0, ',', '.') }}</td>
+                            <td>
+                                @if ($b->isSettled())
+                                    <span class="badge badge-ok">Sudah dicairkan</span>
+                                    <div class="muted" style="font-size:.75rem">
+                                        {{ $b->settled_at->format('d/m/Y H:i') }}
+                                    </div>
+                                @else
+                                    <span class="badge badge-warn">Menunggu pencairan</span>
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

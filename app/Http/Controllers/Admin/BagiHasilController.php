@@ -29,7 +29,7 @@ class BagiHasilController extends Controller
         $cari = trim((string) $request->query('cari'));
 
         $bagiHasil = BagiHasil::query()
-            ->with(['penyewaan.motor.pemilik', 'penyewaan.penyewa'])
+            ->with(['penyewaan.motor.pemilik', 'penyewaan.penyewa', 'pencairan'])
             ->when($cari !== '', function ($q) use ($cari) {
                 $q->whereHas('penyewaan.motor.pemilik', fn ($u) => $u->where('nama', 'like', "%{$cari}%"))
                     ->orWhereHas('penyewaan.motor', fn ($m) => $m->where('no_plat', 'like', "%{$cari}%"))
@@ -53,8 +53,11 @@ class BagiHasilController extends Controller
             'cari' => $cari,
             'persentasePemilik' => $this->service->persentasePemilik(),
             'persentaseAdmin' => $this->service->persentaseAdmin(),
-            'totalNominalPemilik' => (float) BagiHasil::sum('nominal_pemilik'),
-            'totalNominalAdmin' => (float) BagiHasil::sum('nominal_admin'),
+            // Diterima = sudah dicairkan. Menunggu = belum diserahkan ke pemilik.
+            'totalNominalPemilik' => (float) BagiHasil::query()->sudahDicairkan()->sum('nominal_pemilik'),
+            'totalNominalAdmin' => (float) BagiHasil::query()->sudahDicairkan()->sum('nominal_admin'),
+            'totalMenungguPencairan' => (float) BagiHasil::query()->menungguPencairan()->sum('nominal_pemilik'),
+            'jumlahMenungguPencairan' => BagiHasil::query()->menungguPencairan()->count(),
         ]);
     }
 
@@ -62,9 +65,28 @@ class BagiHasilController extends Controller
     {
         $this->authorize('view', $bagiHasil);
 
-        $bagiHasil->load(['penyewaan.motor.pemilik', 'penyewaan.penyewa', 'penyewaan.transaksis']);
+        $bagiHasil->load(['penyewaan.motor.pemilik', 'penyewaan.penyewa', 'penyewaan.transaksis', 'pencairan']);
 
         return view('admin.bagi-hasil.show', ['bagiHasil' => $bagiHasil]);
+    }
+
+    /**
+     * Admin mengonfirmasi bahwa uang bagian pemilik sudah diserahkan.
+     */
+    public function cairkan(Request $request, BagiHasil $bagiHasil): RedirectResponse
+    {
+        $this->authorize('cairkan', $bagiHasil);
+
+        try {
+            $this->service->cairkan($bagiHasil, $request->user());
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with(
+            'success',
+            'Pencairan dana bagi hasil #'.$bagiHasil->id.' berhasil dikonfirmasi.'
+        );
     }
 
     /**

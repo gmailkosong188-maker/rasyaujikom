@@ -31,6 +31,30 @@ class Motor extends Model
         self::STATUS_DITOLAK,
     ];
 
+    // -----------------------------------------------------------------
+    // Aktif / Nonaktif (tersedia untuk disewa atau tidak)
+    // -----------------------------------------------------------------
+
+    public const AKTIF = true;
+
+    public const NONAKTIF = false;
+
+    /**
+     * Motor yang aktif dan layak ditawarkan untuk disewa.
+     *
+     * Digunakan bersama scope `tersedia()` agar katalog penyewa hanya
+     * memuat motor yang aktif DIVERIFIKASI dan belum disewa.
+     */
+    public function scopeAktif(Builder $query): Builder
+    {
+        return $query->where('is_aktif', self::AKTIF);
+    }
+
+    public function scopeNonaktif(Builder $query): Builder
+    {
+        return $query->where('is_aktif', self::NONAKTIF);
+    }
+
     public const TIPE_CC = ['100', '125', '150'];
 
     /**
@@ -67,6 +91,7 @@ class Motor extends Model
         'tipe_cc',
         'no_plat',
         'status',
+        'is_aktif',
         'photo',
         'dokumen_kepemilikan',
     ];
@@ -75,6 +100,7 @@ class Motor extends Model
     {
         return [
             'tipe_cc' => 'string',
+            'is_aktif' => 'boolean',
         ];
     }
 
@@ -102,11 +128,12 @@ class Motor extends Model
     // -----------------------------------------------------------------
 
     /**
-     * Hanya motor yang boleh disewa (sudah diverifikasi & tidak dipakai).
+     * Hanya motor yang boleh disewa (sudah diverifikasi & tidak dipakai & aktif).
      */
     public function scopeTersedia(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_TERSEDIA);
+        return $query->where('status', self::STATUS_TERSEDIA)
+            ->where('is_aktif', self::AKTIF);
     }
 
     // -----------------------------------------------------------------
@@ -123,14 +150,35 @@ class Motor extends Model
         return $this->status === self::STATUS_DISEWA;
     }
 
+    public function isAktif(): bool
+    {
+        return $this->is_aktif === self::AKTIF;
+    }
+
+    public function isNonaktif(): bool
+    {
+        return $this->is_aktif === self::NONAKTIF;
+    }
+
     /**
-     * Sudah diverifikasi admin dan tarifnya sudah ditentukan.
+     * Motor boleh dinonaktifkan bila belum memiliki penyewaan yang masih
+     * aktif (pending / dikonfirmasi / berjalan). Riwayat penyewaan yang
+     * sudah selesai/dibatalkan tidak memblokir.
+     */
+    public function canBeNonaktif(): bool
+    {
+        return ! $this->penyewaans()->aktif()->exists();
+    }
+
+    /**
+     * Sudah diverifikasi admin, aktif, dan tarifnya sudah ditentukan.
      * Memakai relationLoaded() agar tidak memicu query tambahan
      * pada listing motor (hindari N+1).
      */
     public function siapDisewa(): bool
     {
         return $this->isTersedia()
+            && $this->isAktif()
             && $this->relationLoaded('tarifRental')
             && $this->tarifRental !== null;
     }

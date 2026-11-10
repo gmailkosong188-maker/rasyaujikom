@@ -5,6 +5,8 @@
 @section('body')
     <div class="auth-wrap">
         <div class="auth-card">
+            <a href="{{ route('home') }}" class="auth-nav-link">← Kembali ke Beranda</a>
+
             <h1>Masuk</h1>
             <p class="auth-sub">Sistem Penyewaan Motor</p>
 

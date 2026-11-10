@@ -27,6 +27,7 @@ class MotorController extends Controller
         $this->authorize('viewAny', Motor::class);
 
         $status = $request->query('status');
+        $cari = trim((string) $request->query('cari'));
         $user = $request->user();
 
         $motor = $user->motors()
@@ -35,6 +36,10 @@ class MotorController extends Controller
                 in_array($status, Motor::STATUSES, true),
                 fn ($q) => $q->where('status', $status)
             )
+            ->when($cari !== '', fn ($q) => $q->where(
+                fn ($sub) => $sub->where('merk', 'like', "%{$cari}%")
+                    ->orWhere('no_plat', 'like', "%{$cari}%")
+            ))
             ->latest()
             ->paginate(10)
             ->withQueryString();
@@ -42,6 +47,7 @@ class MotorController extends Controller
         return view('pemilik.motor.index', [
             'motor' => $motor,
             'status' => $status,
+            'cari' => $cari,
         ]);
     }
 
@@ -157,5 +163,42 @@ class MotorController extends Controller
         return redirect()
             ->route('pemilik.motor.index')
             ->with('success', "Motor {$noPlat} berhasil dihapus.");
+    }
+
+    /**
+     * Nonaktifkan motor agar tidak tampil di katalog penyewa
+     * dan tidak dapat dibooking. Riwayat penyewaan tetap tersimpan.
+     */
+    public function nonaktifkan(Motor $motor): RedirectResponse
+    {
+        $this->authorize('nonaktifkan', $motor);
+
+        if (! $motor->canBeNonaktif()) {
+            return back()
+                ->with('error', 'Motor tidak dapat dinonaktifkan karena masih memiliki penyewaan yang berjalan.');
+        }
+
+        DB::transaction(function () use ($motor) {
+            $motor->update(['is_aktif' => Motor::NONAKTIF]);
+        });
+
+        return back()
+            ->with('success', "Motor {$motor->no_plat} telah dinonaktifkan dan tidak tampil di katalog penyewa.");
+    }
+
+    /**
+     * Aktifkan kembali motor sehingga dapat muncul di katalog penyewa
+     * (jika seluruh syarat penyewaan lainnya terpenuhi).
+     */
+    public function aktifkan(Motor $motor): RedirectResponse
+    {
+        $this->authorize('aktifkan', $motor);
+
+        DB::transaction(function () use ($motor) {
+            $motor->update(['is_aktif' => Motor::AKTIF]);
+        });
+
+        return back()
+            ->with('success', "Motor {$motor->no_plat} telah diaktifkan kembali.");
     }
 }

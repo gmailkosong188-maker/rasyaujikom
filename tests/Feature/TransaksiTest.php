@@ -7,7 +7,9 @@ use App\Models\Penyewaan;
 use App\Models\TarifRental;
 use App\Models\Transaksi;
 use App\Models\User;
+use App\Services\TransaksiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use InvalidArgumentException;
 use Tests\TestCase;
 
 class TransaksiTest extends TestCase
@@ -37,8 +39,8 @@ class TransaksiTest extends TestCase
         return $this->user('pemilik', 'p@t.test');
     }
 
-    /** Penyewaan pending milik penyewa dengan harga 250.000. */
-    private function penyewaan(): array
+    /** Penyewaan milik penyewa dengan harga 250.000 (default: sudah dikonfirmasi admin). */
+    private function penyewaan(string $status = Penyewaan::STATUS_DIKONFIRMASI): array
     {
         $motor = Motor::create([
             'pemilik_id' => $this->pemilik()->id, 'merk' => 'Beat', 'tipe_cc' => '125',
@@ -51,7 +53,7 @@ class TransaksiTest extends TestCase
         $penyewaan = Penyewaan::create([
             'penyewa_id' => $this->penyewa()->id, 'motor_id' => $motor->id,
             'tanggal_mulai' => now()->addDay(), 'tanggal_selesai' => now()->addDays(5),
-            'tipe_durasi' => 'harian', 'harga' => 250000, 'status' => Penyewaan::STATUS_PENDING,
+            'tipe_durasi' => 'harian', 'harga' => 250000, 'status' => $status,
         ]);
 
         return [$penyewaan, $motor];
@@ -120,6 +122,28 @@ class TransaksiTest extends TestCase
             ->post('/penyewa/transaksi', $this->payload($p))
             ->assertSessionHasErrors('penyewaan_id');
         $this->assertDatabaseCount('transaksis', 0);
+    }
+
+    public function test_tidak_bisa_membayar_penyewaan_yang_belum_dikonfirmasi(): void
+    {
+        [$p] = $this->penyewaan(Penyewaan::STATUS_PENDING);
+
+        $this->actingAs($this->penyewa())
+            ->post('/penyewa/transaksi', $this->payload($p))
+            ->assertSessionHasErrors('penyewaan_id');
+
+        $this->assertDatabaseCount('transaksis', 0);
+        $this->assertSame(Penyewaan::STATUS_PENDING, $p->fresh()->status);
+    }
+
+    public function test_service_menolak_pembayaran_penyewaan_yang_belum_dikonfirmasi(): void
+    {
+        [$p] = $this->penyewaan(Penyewaan::STATUS_PENDING);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(TransaksiService::PESAN_BELUM_DIKONFIRMASI);
+
+        app(TransaksiService::class)->buat($this->penyewa(), $p, Transaksi::METODE_TRANSFER);
     }
 
     public function test_tidak_bisa_membayar_dua_kali(): void
@@ -192,15 +216,22 @@ class TransaksiTest extends TestCase
 
     // ---------- SINKRONISASI STATUS ----------
 
-    public function test_pembayaran_dibayar_mengonfirmasi_penyewaan_dan_motor(): void
+    public function test_konfirmasi_admin_lalu_pembayaran_dibayar_menjaga_status_dan_motor(): void
     {
-        [$p, $motor] = $this->penyewaan();
+        [$p, $motor] = $this->penyewaan(Penyewaan::STATUS_PENDING);
+
+        $this->actingAs($this->admin())
+            ->patch("/admin/penyewaan/{$p->id}/status", ['status' => Penyewaan::STATUS_DIKONFIRMASI]);
+
+        $this->assertSame(Penyewaan::STATUS_DIKONFIRMASI, $p->fresh()->status);
+
         $this->actingAs($this->penyewa())->post('/penyewa/transaksi', $this->payload($p));
         $t = Transaksi::firstOrFail();
 
         $this->actingAs($this->admin())
             ->patch("/admin/transaksi/{$t->id}/status", ['status' => 'dibayar']);
 
+        $this->assertSame(Transaksi::STATUS_DIBAYAR, $t->fresh()->status);
         $this->assertSame(Penyewaan::STATUS_DIKONFIRMASI, $p->fresh()->status);
         $this->assertSame(Motor::STATUS_DISEWA, $motor->fresh()->status);
     }
@@ -221,6 +252,37 @@ class TransaksiTest extends TestCase
     }
 
     // ---------- UI ----------
+
+    public function test_tombol_pembayaran_tidak_tampil_saat_penyewaan_pending(): void
+    {
+        [$p] = $this->penyewaan(Penyewaan::STATUS_PENDING);
+
+        $this->actingAs($this->penyewa())
+            ->get("/penyewa/penyewaan/{$p->id}")
+            ->assertOk()
+            ->assertSee('Menunggu konfirmasi admin')
+            ->assertDontSee('Lakukan Pembayaran');
+    }
+
+    public function test_tombol_pembayaran_tampil_saat_penyewaan_dikonfirmasi(): void
+    {
+        [$p] = $this->penyewaan();
+
+        $this->actingAs($this->penyewa())
+            ->get("/penyewa/penyewaan/{$p->id}")
+            ->assertOk()
+            ->assertSee('Lakukan Pembayaran');
+    }
+
+    public function test_form_pembayaran_untuk_penyewaan_pending_dialihkan(): void
+    {
+        [$p] = $this->penyewaan(Penyewaan::STATUS_PENDING);
+
+        $this->actingAs($this->penyewa())
+            ->get("/penyewa/transaksi/create?penyewaan_id={$p->id}")
+            ->assertRedirect(route('penyewa.penyewaan.show', $p))
+            ->assertSessionHas('error', TransaksiService::PESAN_BELUM_DIKONFIRMASI);
+    }
 
     public function test_form_pembayaran_tampil_dengan_jumlah_benar(): void
     {

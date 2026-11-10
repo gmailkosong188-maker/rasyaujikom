@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use InvalidArgumentException;
 
 class Penyewaan extends Model
 {
@@ -189,11 +190,47 @@ class Penyewaan extends Model
     }
 
     /**
+     * Jumlah hari sewa, dihitung inklusif.
+     */
+    public static function hitungHari(CarbonInterface $mulai, CarbonInterface $selesai): int
+    {
+        return max(1, (int) $mulai->copy()->startOfDay()->diffInDays($selesai->copy()->startOfDay()) + 1);
+    }
+
+    /**
+     * Pastikan tipe durasi termasuk tipe yang dikenal sistem.
+     *
+     * Sesuai spesifikasi §12, ketiga tipe durasi boleh dipakai untuk lama sewa
+     * berapa pun — yang menentukan biaya adalah tarif tipe tersebut
+     * (harian: jumlah_hari × tarif_harian, dst). Karena itu TIDAK ada
+     * pembatasan rentang hari di sini.
+     *
+     * @throws InvalidArgumentException bila tipe durasi tidak dikenal.
+     */
+    public static function validasiDurasi(string $tipeDurasi, CarbonInterface $mulai, CarbonInterface $selesai): void
+    {
+        if (! in_array($tipeDurasi, self::TIPE_DURASI, true)) {
+            throw new InvalidArgumentException(sprintf(
+                'Tipe durasi "%s" tidak dikenal. Tipe durasi yang tersedia: %s.',
+                $tipeDurasi,
+                implode(', ', self::TIPE_DURASI)
+            ));
+        }
+
+        // Tanggal selesai tidak boleh mendahului tanggal mulai (spesifikasi §12).
+        if ($selesai->copy()->startOfDay()->lt($mulai->copy()->startOfDay())) {
+            throw new InvalidArgumentException(
+                'Tanggal selesai tidak boleh lebih kecil dari tanggal mulai.'
+            );
+        }
+    }
+
+    /**
      * Hitung jumlah periode dari tipe durasi dan rentang tanggal.
      */
     public static function hitungPeriode(string $tipeDurasi, CarbonInterface $mulai, CarbonInterface $selesai): int
     {
-        $hari = max(1, (int) $mulai->copy()->startOfDay()->diffInDays($selesai->copy()->startOfDay()) + 1);
+        $hari = self::hitungHari($mulai, $selesai);
 
         return match ($tipeDurasi) {
             self::TIPE_HARIAN => $hari,

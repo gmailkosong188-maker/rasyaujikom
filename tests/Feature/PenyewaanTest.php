@@ -141,6 +141,96 @@ class PenyewaanTest extends TestCase
         ]))->assertSessionHasErrors('tipe_durasi');
     }
 
+    public function test_semua_tipe_durasi_boleh_untuk_lama_sewa_berapa_pun(): void
+    {
+        $mulai = now()->addDay();
+
+        // Spesifikasi §12 tidak membatasi rentang hari per tipe durasi: yang
+        // menentukan biaya hanya tarif tipe tersebut. Jadi SEMUA kombinasi
+        // berikut harus diterima (mis. 7 hari dengan tarif harian).
+        $kombinasi = [
+            [2, Penyewaan::TIPE_MINGGUAN, 300000],      // 1 x 300.000
+            [2, Penyewaan::TIPE_BULANAN, 1000000],      // 1 x 1.000.000
+            [7, Penyewaan::TIPE_HARIAN, 350000],        // 7 x 50.000
+            [7, Penyewaan::TIPE_BULANAN, 1000000],      // 1 x 1.000.000
+            [30, Penyewaan::TIPE_HARIAN, 1500000],      // 30 x 50.000
+            [30, Penyewaan::TIPE_MINGGUAN, 1500000],    // ceil(30/7)=5 x 300.000
+        ];
+
+        foreach ($kombinasi as $i => [$hari, $tipe, $harga]) {
+            $pemilik = $this->pemilik();
+            $motor = $this->motorDenganTarif($pemilik, "B 700{$i} SD");
+
+            $this->actingAs($this->penyewa("bebas{$i}@t.test"))
+                ->post('/penyewa/penyewaan', $this->payload($motor, [
+                    'tanggal_mulai' => $mulai->toDateString(),
+                    'tanggal_selesai' => $mulai->copy()->addDays($hari - 1)->toDateString(),
+                    'tipe_durasi' => $tipe,
+                ]))
+                ->assertSessionMissing('error');
+
+            $p = Penyewaan::where('motor_id', $motor->id)->firstOrFail();
+            $this->assertSame($tipe, $p->tipe_durasi);
+            $this->assertEquals($harga, (float) $p->harga);
+        }
+
+        $this->assertDatabaseCount('penyewaans', count($kombinasi));
+    }
+
+    public function test_tanggal_selesai_sebelum_tanggal_mulai_ditolak(): void
+    {
+        $motor = $this->motorDenganTarif();
+        $mulai = now()->addDays(10);
+
+        $this->actingAs($this->penyewa())
+            ->post('/penyewa/penyewaan', $this->payload($motor, [
+                'tanggal_mulai' => $mulai->toDateString(),
+                'tanggal_selesai' => $mulai->copy()->subDays(2)->toDateString(),
+                'tipe_durasi' => Penyewaan::TIPE_HARIAN,
+            ]))
+            ->assertSessionHasErrors('tanggal_selesai');
+
+        $this->assertDatabaseCount('penyewaans', 0);
+    }
+
+    public function test_tipe_durasi_sesuai_lama_sewa_diterima_dengan_harga_server_side(): void
+    {
+        $pemilik = $this->pemilik();
+        $mulai = now()->addDay();
+
+        // [lama sewa (hari), tipe durasi, harga yang diharapkan dari tarif motor]
+        $sesuai = [
+            [2, Penyewaan::TIPE_HARIAN, 100000],        // 2 x 50.000
+            [7, Penyewaan::TIPE_MINGGUAN, 300000],      // 1 x 300.000
+            [30, Penyewaan::TIPE_BULANAN, 1000000],     // 1 x 1.000.000
+        ];
+
+        foreach ($sesuai as $i => [$hari, $tipe, $harga]) {
+            $motor = $this->motorDenganTarif($pemilik, "B 888{$i} SD");
+
+            $this->actingAs($this->penyewa("v{$i}@t.test"))
+                ->post('/penyewa/penyewaan', $this->payload($motor, [
+                    'tanggal_mulai' => $mulai->toDateString(),
+                    'tanggal_selesai' => $mulai->copy()->addDays($hari - 1)->toDateString(),
+                    'tipe_durasi' => $tipe,
+                ]))
+                ->assertSessionMissing('error');
+
+            $p = Penyewaan::where('motor_id', $motor->id)->firstOrFail();
+            $this->assertSame($tipe, $p->tipe_durasi);
+            $this->assertEquals($harga, (float) $p->harga);
+        }
+    }
+
+    public function test_validasi_durasi_menolak_tipe_tidak_dikenal(): void
+    {
+        $mulai = \Carbon\Carbon::parse('2025-03-01');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        Penyewaan::validasiDurasi('tahunan', $mulai, $mulai->copy()->addDays(364));
+    }
+
     public function test_motor_tidak_tersedia_ditolak(): void
     {
         foreach ([Motor::STATUS_PENDING, Motor::STATUS_DISEWA, Motor::STATUS_PERAWATAN, Motor::STATUS_DITOLAK] as $i => $status) {

@@ -82,9 +82,9 @@
         @endcan
     </div>
 
-    @can('ubahStatus', $motor)
+    @can('verifikasi', $motor)
         <div class="card">
-            <h2 class="section-title">Verifikasi &amp; Ubah Status</h2>
+            <h2 class="section-title">Verifikasi Motor</h2>
 
             @if ($motor->status === \App\Models\Motor::STATUS_PENDING)
                 <div class="btn-row" style="margin-top:0">
@@ -98,14 +98,28 @@
                         <button type="submit" class="btn btn-danger">Tolak Motor</button>
                     </form>
                 </div>
+
+                <p class="muted" style="margin-top:1rem">
+                    Status motor ditentukan otomatis oleh sistem berdasarkan tindakan Terima atau Tolak.
+                </p>
+            @else
+                <p class="muted" style="margin:0">
+                    Motor ini tidak berstatus pending, sehingga verifikasi tidak dapat diulang.
+                </p>
             @endif
+        </div>
+    @endcan
+
+    @can('ubahStatus', $motor)
+        <div class="card">
+            <h2 class="section-title">Pengelolaan Status Operasional</h2>
 
             @if (empty($statusTersedia))
-                <p class="muted" style="margin-top:1rem">
+                <p class="muted" style="margin:0">
                     Status <strong>{{ ucfirst($motor->status) }}</strong> tidak memiliki transisi lain.
                 </p>
             @else
-                <form method="POST" action="{{ route('admin.motor.status', $motor) }}" class="filter-bar" style="margin-top:1rem">
+                <form method="POST" action="{{ route('admin.motor.status', $motor) }}" class="filter-bar" style="margin-top:0">
                     @csrf
                     @method('PATCH')
                     <div class="field">

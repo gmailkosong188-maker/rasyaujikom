@@ -1,0 +1,47 @@
+[1mdiff --git a/app/Http/Controllers/Admin/MotorController.php b/app/Http/Controllers/Admin/MotorController.php[m
+[1mindex b094cd6..ae02a60 100644[m
+[1m--- a/app/Http/Controllers/Admin/MotorController.php[m
+[1m+++ b/app/Http/Controllers/Admin/MotorController.php[m
+[36m@@ -83,12 +83,14 @@[m [mpublic function show(Motor $motor): View[m
+      */[m
+     public function terima(Motor $motor): RedirectResponse[m
+     {[m
+[31m-        $this->authorize('verifikasi', $motor);[m
+[31m-[m
+[32m+[m[32m        // Validasi status dilakukan sebelum otorisasi agar perilaku konsisten[m
+[32m+[m[32m        // dengan API (motor yang tidak pending ditolak dengan pesan bisnis).[m
+         if (! $motor->bolehBerubahKe(Motor::STATUS_TERSEDIA)) {[m
+             return back()->with('error', 'Motor ini tidak dapat diterima pada status saat ini.');[m
+         }[m
+ [m
+[32m+[m[32m        $this->authorize('verifikasi', $motor);[m
+[32m+[m
+         DB::transaction(function () use ($motor) {[m
+             $motor->update(['status' => Motor::STATUS_TERSEDIA]);[m
+         });[m
+[36m@@ -113,10 +115,15 @@[m [mpublic function tolak(Request $request, Motor $motor): RedirectResponse[m
+             'alasan' => ['nullable', 'string', 'max:500'],[m
+         ]);[m
+ [m
+[31m-        if (! $motor->bolehBerubahKe(Motor::STATUS_DITOLAK)) {[m
+[32m+[m[32m        // Penolakan verifikasi hanya untuk motor pending. Motor yang sudah[m
+[32m+[m[32m        // tersedia/ditolak/perawatan tidak boleh ditolak sembarangan lewat[m
+[32m+[m[32m        // endpoint verifikasi.[m
+[32m+[m[32m        if ($motor->status !== Motor::STATUS_PENDING || ! $motor->bolehBerubahKe(Motor::STATUS_DITOLAK)) {[m
+             return back()->with('error', 'Motor ini tidak dapat ditolak pada status saat ini.');[m
+         }[m
+ [m
+[32m+[m[32m        $this->authorize('verifikasi', $motor);[m
+[32m+[m
+         DB::transaction(function () use ($motor) {[m
+             $motor->update(['status' => Motor::STATUS_DITOLAK]);[m
+         });[m
+[36m@@ -134,6 +141,8 @@[m [mpublic function tolak(Request $request, Motor $motor): RedirectResponse[m
+      */[m
+     public function updateStatus(UpdateStatusMotorRequest $request, Motor $motor): RedirectResponse[m
+     {[m
+[32m+[m[32m        $this->authorize('ubahStatus', $motor);[m
+[32m+[m
+         $validated = $request->validated();[m
+ [m
+         if (! $motor->bolehBerubahKe($validated['status'])) {[m

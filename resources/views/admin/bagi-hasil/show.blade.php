@@ -20,6 +20,21 @@
             <a href="{{ route('admin.bagi-hasil.index') }}" class="btn btn-ghost btn-sm">&laquo; Kembali</a>
         </div>
 
+        @if ($bagiHasil->isMenungguPencairan())
+            <form method="POST" action="{{ route('admin.bagi-hasil.cairkan', $bagiHasil) }}"
+                style="margin-top:1rem"
+                onsubmit="return confirm('Konfirmasi bahwa uang bagian pemilik (Rp {{ number_format($bagiHasil->nominal_pemilik, 0, ',', '.') }}) sudah benar-benar diserahkan?')">
+                @csrf
+                @method('PATCH')
+                <div class="alert alert-warning" style="margin-bottom:.75rem">
+                    Dana sebesar <strong>Rp {{ number_format($bagiHasil->nominal_pemilik, 0, ',', '.') }}</strong>
+                    belum diserahkan kepada pemilik ({{ $penyewaan?->motor?->pemilik?->nama ?? '-' }}).
+                    Tekan tombol setelah uang benar-benar diserahkan.
+                </div>
+                <button type="submit" class="btn btn-sm">Konfirmasi Pencairan</button>
+            </form>
+        @endif
+
         <div class="detail-grid" style="margin-top:1.25rem">
             <div class="detail-item">
                 <div class="label">Pemilik Motor</div>
@@ -41,19 +56,25 @@
                 <div class="value money">Rp {{ number_format($penyewaan?->harga ?? 0, 0, ',', '.') }}</div>
             </div>
             <div class="detail-item">
-                <div class="label">Tanggal Settlement</div>
-                <div class="value">{{ $bagiHasil->tanggal->format('d/m/Y') }}</div>
-            </div>
-            <div class="detail-item">
-                <div class="label">Status</div>
+                <div class="label">Status Pencairan</div>
                 <div class="value">
                     @if ($bagiHasil->isSettled())
-                        <span class="badge badge-success">Settled</span>
+                        <span class="badge badge-success">Sudah dicairkan</span>
                     @else
-                        <span class="badge badge-warn">Belum settled</span>
+                        <span class="badge badge-warn">Menunggu pencairan</span>
                     @endif
                 </div>
             </div>
+            @if ($bagiHasil->isSettled())
+                <div class="detail-item">
+                    <div class="label">Waktu Pencairan</div>
+                    <div class="value">{{ $bagiHasil->settled_at->format('d/m/Y H:i') }}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="label">Dicairkan Oleh</div>
+                    <div class="value">{{ $bagiHasil->pencairan?->nama ?? '-' }}</div>
+                </div>
+            @endif
         </div>
     </div>
 

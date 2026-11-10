@@ -47,7 +47,7 @@
 
                 <div class="field">
                     <label for="tarif_harian">Tarif Harian (Rp)</label>
-                    <input id="tarif_harian" type="number" name="tarif_harian" min="1" step="1000"
+                    <input id="tarif_harian" type="number" name="tarif_harian" min="1000" step="1000"
                         value="{{ old('tarif_harian') }}" class="{{ $errors->has('tarif_harian') ? 'is-invalid' : '' }}"
                         required placeholder="50000">
                     @error('tarif_harian')<div class="error">{{ $message }}</div>@enderror
@@ -55,7 +55,7 @@
 
                 <div class="field">
                     <label for="tarif_mingguan">Tarif Mingguan (Rp)</label>
-                    <input id="tarif_mingguan" type="number" name="tarif_mingguan" min="1" step="1000"
+                    <input id="tarif_mingguan" type="number" name="tarif_mingguan" min="1000" step="1000"
                         value="{{ old('tarif_mingguan') }}" class="{{ $errors->has('tarif_mingguan') ? 'is-invalid' : '' }}"
                         required placeholder="300000">
                     @error('tarif_mingguan')<div class="error">{{ $message }}</div>@enderror
@@ -63,7 +63,7 @@
 
                 <div class="field">
                     <label for="tarif_bulanan">Tarif Bulanan (Rp)</label>
-                    <input id="tarif_bulanan" type="number" name="tarif_bulanan" min="1" step="1000"
+                    <input id="tarif_bulanan" type="number" name="tarif_bulanan" min="1000" step="1000"
                         value="{{ old('tarif_bulanan') }}" class="{{ $errors->has('tarif_bulanan') ? 'is-invalid' : '' }}"
                         required placeholder="1000000">
                     @error('tarif_bulanan')<div class="error">{{ $message }}</div>@enderror

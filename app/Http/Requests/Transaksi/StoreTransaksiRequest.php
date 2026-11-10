@@ -4,6 +4,7 @@ namespace App\Http\Requests\Transaksi;
 
 use App\Models\Penyewaan;
 use App\Models\Transaksi;
+use App\Services\TransaksiService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -57,7 +58,7 @@ class StoreTransaksiRequest extends FormRequest
 
     /**
      * Aturan bisnis tambahan: penyewaan milik user ini, belum lunas,
-     * dan statusnya memang boleh dibayar.
+     * dan sudah dikonfirmasi admin sehingga boleh dibayar.
      */
     public function withValidator(\Illuminate\Validation\Validator $validator): void
     {
@@ -81,11 +82,9 @@ class StoreTransaksiRequest extends FormRequest
                 return;
             }
 
-            if (in_array($penyewaan->status, [Penyewaan::STATUS_DIBATALKAN, Penyewaan::STATUS_SELESAI], true)) {
-                $validator->errors()->add(
-                    'penyewaan_id',
-                    "Penyewaan berstatus \"{$penyewaan->status}\" tidak dapat dibayar."
-                );
+            // Pembayaran hanya boleh setelah penyewaan dikonfirmasi admin.
+            if ($penyewaan->status !== Penyewaan::STATUS_DIKONFIRMASI) {
+                $validator->errors()->add('penyewaan_id', TransaksiService::PESAN_BELUM_DIKONFIRMASI);
 
                 return;
             }

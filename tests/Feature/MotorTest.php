@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Motor;
+use App\Models\Penyewaan;
+use App\Models\TarifRental;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -231,5 +233,136 @@ class MotorTest extends TestCase
         $motor = $this->motorUntuk($p);
         $this->actingAs($p)->post("/admin/motor/{$motor->id}/terima")->assertRedirect();
         $this->assertSame(Motor::STATUS_PENDING, $motor->fresh()->status);
+    }
+
+    // ---------- AKTIF / NONAKTIF ----------
+
+    public function test_pemilik_bisa_nonaktifkan_motor(): void
+    {
+        $p = $this->pemilik();
+        $motor = $this->motorUntuk($p, 'B 9001 AA', Motor::STATUS_TERSEDIA);
+
+        $this->actingAs($p)
+            ->post("/pemilik/motor/{$motor->id}/nonaktifkan")
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertFalse($motor->fresh()->isAktif());
+    }
+
+    public function test_pemilik_bisa_aktifkan_kembali_motor(): void
+    {
+        $p = $this->pemilik();
+        $motor = $this->motorUntuk($p, 'B 9002 AA', Motor::STATUS_TERSEDIA);
+        $motor->update(['is_aktif' => false]);
+
+        $this->actingAs($p)
+            ->post("/pemilik/motor/{$motor->id}/aktifkan")
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertTrue($motor->fresh()->isAktif());
+    }
+
+    public function test_pemilik_tidak_bisa_nonaktifkan_motor_yang_disewa(): void
+    {
+        $p = $this->pemilik();
+        $penyewa = $this->penyewa();
+        $motor = $this->motorUntuk($p, 'B 9003 AA', Motor::STATUS_TERSEDIA);
+
+        // Buat penyewaan yang masih aktif (berjalan) untuk motor ini.
+        Penyewaan::create([
+            'penyewa_id' => $penyewa->id,
+            'motor_id' => $motor->id,
+            'tanggal_mulai' => now()->addDay()->toDateString(),
+            'tanggal_selesai' => now()->addDays(5)->toDateString(),
+            'tipe_durasi' => Penyewaan::TIPE_HARIAN,
+            'harga' => 250000,
+            'status' => Penyewaan::STATUS_BERJALAN,
+        ]);
+
+        $this->actingAs($p)
+            ->post("/pemilik/motor/{$motor->id}/nonaktifkan")
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertTrue($motor->fresh()->isAktif());
+    }
+
+    public function test_penyewa_tidak_bisa_nonaktifkan_motor(): void
+    {
+        $p = $this->pemilik();
+        $motor = $this->motorUntuk($p, 'B 9004 AA', Motor::STATUS_TERSEDIA);
+        $penyewa = $this->penyewa();
+
+        $this->actingAs($penyewa)
+            ->post("/pemilik/motor/{$motor->id}/nonaktifkan")
+            ->assertRedirect(); // route diproteksi role:pemilik -> dialihkan
+    }
+
+    public function test_admin_tidak_bisa_nonaktifkan_motor_hanya_pemilik(): void
+    {
+        $p = $this->pemilik();
+        $motor = $this->motorUntuk($p, 'B 9005 AA', Motor::STATUS_TERSEDIA);
+
+        $this->actingAs($this->admin())
+            ->post("/pemilik/motor/{$motor->id}/nonaktifkan")
+            ->assertRedirect(); // bukan route admin
+    }
+
+    public function test_motor_nonaktif_tidak_muncul_di_katalog_penyewa(): void
+    {
+        $p = $this->pemilik();
+        $this->motorUntuk($p, 'B 9101 AA', Motor::STATUS_TERSEDIA);
+        $nonaktif = $this->motorUntuk($p, 'B 9102 AA', Motor::STATUS_TERSEDIA);
+        $nonaktif->update(['is_aktif' => false]);
+
+        $this->actingAs($this->penyewa())->get('/penyewa/motor')
+            ->assertOk()
+            ->assertSee('B 9101 AA')
+            ->assertDontSee('B 9102 AA');
+    }
+
+    public function test_motor_aktif_kembali_muncul_di_katalog_jika_syarat_terpenuhi(): void
+    {
+        $p = $this->pemilik();
+        $penyewa = $this->penyewa();
+        $motor = $this->motorUntuk($p, 'B 9103 AA', Motor::STATUS_TERSEDIA);
+        $motor->update(['is_aktif' => false]);
+
+        // Nonaktif -> tidak muncul
+        $this->actingAs($penyewa)->get('/penyewa/motor')
+            ->assertDontSee('B 9103 AA');
+
+        // Aktifkan kembali -> muncul lagi
+        $this->actingAs($p)
+            ->post("/pemilik/motor/{$motor->id}/aktifkan")
+            ->assertRedirect();
+
+        $this->actingAs($penyewa)->get('/penyewa/motor')
+            ->assertOk()
+            ->assertSee('B 9103 AA');
+    }
+
+    public function test_booking_motor_nonaktif_ditolak_di_web(): void
+    {
+        $p = $this->pemilik();
+        $penyewa = $this->penyewa();
+        $motor = Motor::create([
+            'pemilik_id' => $p->id, 'merk' => 'Beat', 'tipe_cc' => '125',
+            'no_plat' => 'B 9201 AA', 'status' => Motor::STATUS_TERSEDIA, 'is_aktif' => false,
+        ]);
+        TarifRental::create([
+            'motor_id' => $motor->id, 'tarif_harian' => 50000, 'tarif_mingguan' => 300000, 'tarif_bulanan' => 1000000,
+        ]);
+
+        $this->actingAs($penyewa)->post('/penyewa/penyewaan', [
+            'motor_id' => $motor->id,
+            'tanggal_mulai' => now()->addDay()->toDateString(),
+            'tanggal_selesai' => now()->addDays(5)->toDateString(),
+            'tipe_durasi' => Penyewaan::TIPE_HARIAN,
+        ])->assertSessionHas('error');
+
+        $this->assertDatabaseCount('penyewaans', 0);
     }
 }

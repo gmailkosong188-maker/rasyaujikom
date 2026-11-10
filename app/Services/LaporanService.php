@@ -68,13 +68,22 @@ class LaporanService
             Transaksi::query()->whereBetween('tanggal', [$dari->toDateString(), $sampai->toDateString()])
         );
 
+        // Hanya dana yang SUDAH dicairkan admin yang dihitung sebagai bagian diterima.
         $bagianPemilik = (float) BagiHasil::query()
+            ->sudahDicairkan()
             ->whereBetween('tanggal', [$dari->toDateString(), $sampai->toDateString()])
             ->sum('nominal_pemilik');
 
         $bagianAdmin = (float) BagiHasil::query()
+            ->sudahDicairkan()
             ->whereBetween('tanggal', [$dari->toDateString(), $sampai->toDateString()])
             ->sum('nominal_admin');
+
+        // Dana yang masih menunggu pencairan (belum diserahkan ke pemilik).
+        $menungguPencairan = (float) BagiHasil::query()
+            ->menungguPencairan()
+            ->whereBetween('tanggal', [$dari->toDateString(), $sampai->toDateString()])
+            ->sum('nominal_pemilik');
 
         return [
             'jumlahMotor' => (int) $motorPerStatus->sum(),
@@ -86,6 +95,7 @@ class LaporanService
             'totalPendapatan' => $pendapatan,
             'bagianPemilik' => $bagianPemilik,
             'bagianAdmin' => $bagianAdmin,
+            'menungguPencairan' => $menungguPencairan,
             'penyewaanPerStatus' => Penyewaan::query()
                 ->whereBetween('tanggal_mulai', [$dari->toDateString(), $sampai->toDateString()])
                 ->select('status', DB::raw('COUNT(*) as total'))
@@ -170,7 +180,7 @@ class LaporanService
             ->get();
 
         $bagiHasil = BagiHasil::query()
-            ->with(['penyewaan.motor'])
+            ->with(['penyewaan.motor', 'pencairan'])
             ->whereHas('penyewaan.motor', fn ($q) => $q->where('pemilik_id', $pemilik->id))
             ->whereBetween('tanggal', [$dari->toDateString(), $sampai->toDateString()])
             ->latest('tanggal')
@@ -187,7 +197,10 @@ class LaporanService
             'pendapatanPerMotor' => $pendapatanPerMotor,
             'totalPendapatan' => (float) $pendapatanPerMotor->sum('total_pendapatan'),
             'bagiHasil' => $bagiHasil,
-            'totalBagiHasil' => (float) $bagiHasil->sum('nominal_pemilik'),
+            // Total yang benar-benar sudah diterima pemilik.
+            'totalBagiHasil' => (float) $bagiHasil->whereNotNull('settled_at')->sum('nominal_pemilik'),
+            // Total yang masih menunggu dicairkan admin.
+            'totalMenungguPencairan' => (float) $bagiHasil->whereNull('settled_at')->sum('nominal_pemilik'),
             'jumlahPenyewaan' => Penyewaan::query()
                 ->whereIn('motor_id', $motorIds)
                 ->whereBetween('tanggal_mulai', [$dari->toDateString(), $sampai->toDateString()])

@@ -47,6 +47,14 @@
                 <div class="value"><x-badge :value="$motor->status" /></div>
             </div>
             <div class="detail-item">
+                <div class="label">Tawarkan untuk Disewa</div>
+                <div class="value">
+                    <span class="{{ $motor->isAktif() ? 'badge-success' : 'badge-warning' }}">
+                        {{ $motor->isAktif() ? 'Aktif' : 'Nonaktif' }}
+                    </span>
+                </div>
+            </div>
+            <div class="detail-item">
                 <div class="label">Tarif Harian</div>
                 <div class="value money">
                     {{ $motor->tarifRental ? 'Rp ' . number_format($motor->tarifRental->tarif_harian, 0, ',', '.') : 'Belum ditentukan' }}
@@ -98,6 +106,23 @@
             @can('update', $motor)
                 <a href="{{ route('pemilik.motor.edit', $motor) }}" class="btn btn-sm">Edit Motor</a>
             @endcan
+
+            @if ($motor->isAktif() && $motor->canBeNonaktif())
+                @can('nonaktifkan', $motor)
+                    <form method="POST" action="{{ route('pemilik.motor.nonaktifkan', $motor) }}" class="inline"
+                        onsubmit="return confirm('Nonaktifkan motor {{ $motor->no_plat }}? Motor tidak akan tampil di katalog penyewa.')">
+                        @csrf
+                        <button type="submit" class="btn btn-danger btn-sm">Nonaktifkan Motor</button>
+                    </form>
+                @endcan
+            @else
+                @can('aktifkan', $motor)
+                    <form method="POST" action="{{ route('pemilik.motor.aktifkan', $motor) }}" class="inline">
+                        @csrf
+                        <button type="submit" class="btn btn-success btn-sm">Aktifkan Motor</button>
+                    </form>
+                @endcan
+            @endif
 
             @can('delete', $motor)
                 <form method="POST" action="{{ route('pemilik.motor.destroy', $motor) }}" class="inline"

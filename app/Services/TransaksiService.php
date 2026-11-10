@@ -17,6 +17,11 @@ use InvalidArgumentException;
 class TransaksiService
 {
     /**
+     * Pesan error saat penyewaan belum disetujui admin.
+     */
+    public const PESAN_BELUM_DIKONFIRMASI = 'Pembayaran belum dapat dilakukan karena penyewaan belum dikonfirmasi admin.';
+
+    /**
      * Buat transaksi pembayaran untuk sebuah penyewaan.
      */
     public function buat(User $penyewa, Penyewaan $penyewaan, string $metode): Transaksi
@@ -25,8 +30,10 @@ class TransaksiService
             throw new InvalidArgumentException('Penyewaan ini bukan milik Anda.');
         }
 
-        if (in_array($penyewaan->status, [Penyewaan::STATUS_DIBATALKAN, Penyewaan::STATUS_SELESAI], true)) {
-            throw new InvalidArgumentException("Penyewaan berstatus \"{$penyewaan->status}\" tidak dapat dibayar.");
+        // Pembayaran hanya boleh dilakukan setelah admin mengonfirmasi penyewaan.
+        // Status selain `dikonfirmasi` (pending/dibatalkan/selesai/berjalan) ditolak.
+        if ($penyewaan->status !== Penyewaan::STATUS_DIKONFIRMASI) {
+            throw new InvalidArgumentException(self::PESAN_BELUM_DIKONFIRMASI);
         }
 
         $jumlah = (float) $penyewaan->harga;

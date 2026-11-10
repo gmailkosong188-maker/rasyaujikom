@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BagiHasil;
 use App\Models\Penyewaan;
 use App\Models\Transaksi;
+use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -119,9 +120,52 @@ class BagiHasilService
                 'persentase_hasil_admin' => $hasil['persentase_hasil_admin'],
                 'nominal_pemilik' => $hasil['nominal_pemilik'],
                 'nominal_admin' => $hasil['nominal_admin'],
-                'settled_at' => now(),
+                // Dana BELUM diserahkan ke pemilik -> menunggu pencairan.
+                // settled_at diisi hanya oleh cairkan() setelah admin menyerahkan uang.
+                'settled_at' => null,
+                'dicairkan_oleh' => null,
                 'tanggal' => $tanggal ?? now()->toDateString(),
             ]);
+        });
+    }
+
+    /**
+     * Admin menyerahkan uang bagian pemilik, lalu menekan Konfirmasi Pencairan.
+     *
+     * Aturan:
+     * - Hanya admin (ditegakkan policy + guard di sini).
+     * - Penyewaan harus sudah `selesai` (pengembalian dikonfirmasi).
+     * - Tidak boleh dicairkan dua kali.
+     * - Nominal TIDAK diambil dari request; memakai nilai tersimpan.
+     */
+    public function cairkan(BagiHasil $bagiHasil, User $admin): BagiHasil
+    {
+        if (! $admin->isAdmin()) {
+            throw new InvalidArgumentException('Hanya admin yang dapat mengonfirmasi pencairan dana.');
+        }
+
+        return DB::transaction(function () use ($bagiHasil, $admin) {
+            /** @var BagiHasil $bagiHasil */
+            $bagiHasil = BagiHasil::query()->lockForUpdate()->findOrFail($bagiHasil->id);
+
+            if ($bagiHasil->settled_at !== null) {
+                throw new InvalidArgumentException('Dana bagi hasil ini sudah dicairkan sebelumnya.');
+            }
+
+            $penyewaan = $bagiHasil->penyewaan;
+
+            if (! $penyewaan || ! $penyewaan->isSelesai()) {
+                throw new InvalidArgumentException(
+                    'Pencairan hanya dapat dilakukan setelah penyewaan selesai (pengembalian dikonfirmasi admin).'
+                );
+            }
+
+            $bagiHasil->update([
+                'settled_at' => now(),
+                'dicairkan_oleh' => $admin->id,
+            ]);
+
+            return $bagiHasil;
         });
     }
 }

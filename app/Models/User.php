@@ -3,15 +3,17 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    /** @use HasFactory<UserFactory> */
+    use HasApiTokens, HasFactory, Notifiable;
 
     public const ROLE_ADMIN = 'admin';
 
@@ -90,6 +92,23 @@ class User extends Authenticatable
     public function isPenyewa(): bool
     {
         return $this->role === self::ROLE_PENYEWA;
+    }
+
+    /**
+     * Admin utama = akun admin paling awal (akun yang dibuat seeder).
+     * Akun ini dilindungi agar sistem tidak kehilangan administrator.
+     */
+    public function isAdminUtama(): bool
+    {
+        if (! $this->isAdmin()) {
+            return false;
+        }
+
+        $adminPertama = static::query()
+            ->where('role', self::ROLE_ADMIN)
+            ->min('id');
+
+        return $adminPertama !== null && (int) $adminPertama === (int) $this->id;
     }
 
     /**

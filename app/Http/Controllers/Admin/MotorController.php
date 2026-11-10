@@ -85,7 +85,7 @@ class MotorController extends Controller
     {
         $this->authorize('verifikasi', $motor);
 
-        if (! $motor->bolehBerubahKe(Motor::STATUS_TERSEDIA)) {
+        if ($motor->status !== Motor::STATUS_PENDING || ! $motor->bolehBerubahKe(Motor::STATUS_TERSEDIA)) {
             return back()->with('error', 'Motor ini tidak dapat diterima pada status saat ini.');
         }
 
@@ -113,7 +113,8 @@ class MotorController extends Controller
             'alasan' => ['nullable', 'string', 'max:500'],
         ]);
 
-        if (! $motor->bolehBerubahKe(Motor::STATUS_DITOLAK)) {
+        // Penolakan verifikasi hanya untuk motor pending.
+        if ($motor->status !== Motor::STATUS_PENDING || ! $motor->bolehBerubahKe(Motor::STATUS_DITOLAK)) {
             return back()->with('error', 'Motor ini tidak dapat ditolak pada status saat ini.');
         }
 
@@ -134,6 +135,8 @@ class MotorController extends Controller
      */
     public function updateStatus(UpdateStatusMotorRequest $request, Motor $motor): RedirectResponse
     {
+        $this->authorize('ubahStatus', $motor);
+
         $validated = $request->validated();
 
         if (! $motor->bolehBerubahKe($validated['status'])) {

@@ -65,6 +65,13 @@ class TransaksiController extends Controller
                 ->with('error', 'Penyewaan ini sudah memiliki transaksi pembayaran.');
         }
 
+        // Form pembayaran hanya untuk penyewaan yang sudah dikonfirmasi admin.
+        if ($penyewaan->status !== Penyewaan::STATUS_DIKONFIRMASI) {
+            return redirect()
+                ->route('penyewa.penyewaan.show', $penyewaan)
+                ->with('error', TransaksiService::PESAN_BELUM_DIKONFIRMASI);
+        }
+
         return view('penyewa.transaksi.create', [
             'penyewaan' => $penyewaan,
             'metode' => Transaksi::METODE,

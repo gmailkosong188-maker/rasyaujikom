@@ -88,9 +88,15 @@ class MotorPolicy
     /**
      * Verifikasi / menerima / menolak motor — khusus admin.
      */
+    /**
+     * Verifikasi / menerima / menolak motor — khusus admin.
+     *
+     * Status `pending` divalidasi di controller setelah authorization,
+     * agar urutan keamanan tetap authorization terlebih dahulu.
+     */
     public function verifikasi(User $user, Motor $motor): bool
     {
-        return $user->isAdmin() && $motor->status === Motor::STATUS_PENDING;
+        return $user->isAdmin();
     }
 
     /**
@@ -99,6 +105,25 @@ class MotorPolicy
     public function ubahStatus(User $user, Motor $motor): bool
     {
         return $user->isAdmin();
+    }
+
+    /**
+     * Nonaktifkan motor — hanya pemilik motor itu sendiri.
+     * Aturan bisnis (motor tidak boleh sedang disewa) ditegakkan di controller.
+     */
+    public function nonaktifkan(User $user, Motor $motor): bool
+    {
+        return $user->isPemilik()
+            && $motor->pemilik_id === $user->id;
+    }
+
+    /**
+     * Aktifkan kembali motor — hanya pemilik motor itu sendiri.
+     */
+    public function aktifkan(User $user, Motor $motor): bool
+    {
+        return $user->isPemilik()
+            && $motor->pemilik_id === $user->id;
     }
 
     /**

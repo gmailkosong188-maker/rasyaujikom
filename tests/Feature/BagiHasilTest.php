@@ -121,7 +121,11 @@ class BagiHasilTest extends TestCase
         $this->assertEquals(50000, (float) $hasil->nominal_admin);
         $this->assertSame(80, $hasil->persentase_hasil_pemilik);
         $this->assertSame(20, $hasil->persentase_hasil_admin);
-        $this->assertNotNull($hasil->settled_at);
+        // Pencairan belum terjadi: catatan bagi hasil dibuat dengan status
+        // MENUNGGU PENCAIRAN (settled_at NULL) sampai admin menyerahkan uang.
+        $this->assertNull($hasil->settled_at);
+        $this->assertNull($hasil->dicairkan_oleh);
+        $this->assertTrue($hasil->isMenungguPencairan());
     }
 
     public function test_bagi_hasil_ganda_dicegah(): void
